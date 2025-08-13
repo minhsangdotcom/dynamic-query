@@ -10,7 +10,7 @@
     <Authors>Tran Minh Sang</Authors>
     <Company>minhsangdotcom</Company>
     <PackageTags>csharp,DynamicQuery, Extension, EntityFrameworkCore</PackageTags>
-    <!-- <RepositoryUrl>https://github.com/minhsangdotcom/the-template_shared-kernel</RepositoryUrl> -->
+    <RepositoryUrl>https://github.com/minhsangdotcom/the-template_shared-kernel</RepositoryUrl>
     <PackageReadmeFile>README-NUGET.md</PackageReadmeFile>
   </PropertyGroup>
 
