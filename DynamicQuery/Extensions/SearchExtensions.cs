@@ -3,11 +3,11 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using DynamicQuery.Enums;
-using DynamicQuery.Models;
 using Microsoft.EntityFrameworkCore;
 using SharedKernel.Extensions;
 using SharedKernel.Extensions.Expressions;
 using SharedKernel.Extensions.Reflections;
+using SharedKernel.Models;
 
 namespace DynamicQuery.Extensions;
 

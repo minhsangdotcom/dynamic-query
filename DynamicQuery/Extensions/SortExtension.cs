@@ -3,6 +3,7 @@ using DynamicQuery.Models;
 using SharedKernel.Exceptions;
 using SharedKernel.Extensions.Expressions;
 using SharedKernel.Extensions.Reflections;
+using SharedKernel.Models;
 
 namespace DynamicQuery.Extensions;
 

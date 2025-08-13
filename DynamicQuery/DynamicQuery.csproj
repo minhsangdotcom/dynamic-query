@@ -15,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="minhsangdotcom.TheTemplate.SharedKernel" Version="1.0.11" />
+    <PackageReference Include="minhsangdotcom.TheTemplate.SharedKernel" Version="1.0.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4-beta1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
 

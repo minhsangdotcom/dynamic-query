@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using DynamicQuery.Models;
 using DynamicQuery.Results;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -7,8 +8,6 @@ using SharedKernel.Extensions;
 using SharedKernel.Extensions.Expressions;
 using SharedKernel.Extensions.Reflections;
 using SharedKernel.Models;
-using CursorPaginationRequest = DynamicQuery.Models.CursorPaginationRequest;
-using OrderTerm = DynamicQuery.Models.OrderTerm;
 
 namespace DynamicQuery.Extensions;
 
