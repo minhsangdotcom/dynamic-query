@@ -10,13 +10,13 @@
     <Authors>Tran Minh Sang</Authors>
     <Company>minhsangdotcom</Company>
     <PackageTags>csharp,DynamicQuery, Extension, EntityFrameworkCore</PackageTags>
-    <RepositoryUrl>https://github.com/minhsangdotcom/the-template_shared-kernel</RepositoryUrl>
+    <RepositoryUrl>https://github.com/minhsangdotcom/dynamic-query</RepositoryUrl>
     <PackageReadmeFile>README-NUGET.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="minhsangdotcom.TheTemplate.SharedKernel" Version="1.0.12" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4-beta1" />
+    <PackageReference Include="minhsangdotcom.TheTemplate.SharedKernel" Version="1.0.13" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
 
     <None Include="../README-NUGET.md" Pack="true" PackagePath="" />

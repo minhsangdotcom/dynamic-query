@@ -115,15 +115,25 @@ For more examples and get better understand, you can visit
 
 'Cause I designed filter input based on [Strapi filter](https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication)
 
-**To know how to binding from LHS to Dynamic object you could see my** [Clean Architecture Project Project](http://https://github.com/minhsangdotcom/clean-architecture)
 
-[This file help you to grab filter string query](https://github.com/minhsangdotcom/clean-architecture/blob/main/src/Contracts/Binds/ModelBindingExtension.cs)
-
-[This will help you how to binding from LHS to Dynamic object](https://github.com/minhsangdotcom/clean-architecture/blob/main/src/Application/Common/Extensions/StringExtension.LHSParser.cs)
 
 ```csharp
+public string[] GetFilterQueries(string query, string filterKey)
+{
+    string[] queryParams = query[1..].Split("&", StringSplitOptions.TrimEntries);
+    return
+    [
+        .. queryParams.Where(param =>
+            param.StartsWith(
+                filterKey,
+                StringComparison.OrdinalIgnoreCase
+            )
+        ),
+    ];
+}
+
 var query = httpContext?.Request.QueryString.Value;
-string[] stringQuery = ModelBindingExtension.GetFilterQueries(query);
+string[] stringQuery = GetFilterQueries(query, "Filter");
 
 List<QueryResult> queries =
         [
@@ -133,8 +143,6 @@ object filter = StringExtension.Parse(queries);
 await dbContext.User.Filter(filter).ToListAsync();
 
 ```
-
-**I'll Update full of them for the next version.**
 
 ### Sort
 
@@ -159,7 +167,6 @@ Cursor
 - Size : Size of page
 - Sort : User sort request
 - UniqueSort : the property that is unique to make the mechanism work property, the default is Id:asc
-
 
 ```csharp
 await dbContext.User.ToCursorPagedListAsync(request);
