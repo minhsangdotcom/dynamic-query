@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>TranMinhSang.DynamicQueryExtension.EntityFrameworkCore</PackageId>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Authors>Tran Minh Sang</Authors>
     <Company>minhsangdotcom</Company>
     <PackageTags>csharp,DynamicQuery, Extension, EntityFrameworkCore</PackageTags>
