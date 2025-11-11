@@ -21,7 +21,7 @@ public static class PaginationExtension
     /// <param name="current"></param>
     /// <param name="size"></param>
     /// <returns></returns>
-    public static async Task<PaginationResponse<T>> ToPagedListAsync<T>(
+    public static async Task<PaginatedResult<T>> ToPagedListAsync<T>(
         this IQueryable<T> query,
         int current,
         int size,
@@ -30,7 +30,7 @@ public static class PaginationExtension
     {
         int totalPage = query.Count();
 
-        return new PaginationResponse<T>(
+        return new PaginatedResult<T>(
             await query.Skip((current - 1) * size).Take(size).ToListAsync(cancellationToken),
             totalPage,
             current,
@@ -46,7 +46,7 @@ public static class PaginationExtension
     /// <param name="current"></param>
     /// <param name="size"></param>
     /// <returns></returns>
-    public static PaginationResponse<T> ToPagedList<T>(
+    public static PaginatedResult<T> ToPagedList<T>(
         this IEnumerable<T> query,
         int current,
         int size
@@ -59,7 +59,7 @@ public static class PaginationExtension
     /// <param name="query"></param>
     /// <param name="request"></param>
     /// <returns></returns>
-    public static async Task<PaginationResponse<T>> ToCursorPagedListAsync<T>(
+    public static async Task<PaginatedResult<T>> ToCursorPagedListAsync<T>(
         this IQueryable<T> query,
         CursorPaginationRequest request
     )
@@ -68,7 +68,7 @@ public static class PaginationExtension
         int totalPage = query.Count();
         if (totalPage == 0)
         {
-            return new PaginationResponse<T>(await query.ToListAsync(), totalPage, request.Size);
+            return new PaginatedResult<T>(await query.ToListAsync(), totalPage, request.Size);
         }
 
         bool IsPreviousMove = !string.IsNullOrWhiteSpace(request.Before);
@@ -99,7 +99,7 @@ public static class PaginationExtension
             )
         );
 
-        return new PaginationResponse<T>(
+        return new PaginatedResult<T>(
             result.Data,
             totalPage,
             result.PageSize,

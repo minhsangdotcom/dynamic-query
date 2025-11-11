@@ -2,24 +2,19 @@ using System.Text.Json.Serialization;
 
 namespace DynamicQuery.Models;
 
-public class PaginationResponse<T>
+public class PaginatedResult<T>
 {
     public IEnumerable<T>? Data { get; private set; }
 
-    public Paging<T>? Paging { get; private set; }
+    public PageMetadata<T>? PageMetadata { get; private set; }
 
-    public PaginationResponse(
-        IEnumerable<T> data,
-        int totalItemCount,
-        int currentPage,
-        int pageSize
-    )
+    public PaginatedResult(IEnumerable<T> data, int totalItemCount, int currentPage, int pageSize)
     {
         Data = data;
-        Paging = new Paging<T>(totalItemCount, currentPage, pageSize);
+        PageMetadata = new PageMetadata<T>(totalItemCount, currentPage, pageSize);
     }
 
-    public PaginationResponse(
+    public PaginatedResult(
         IEnumerable<T> data,
         int totalItemCount,
         int pageSize,
@@ -28,11 +23,11 @@ public class PaginationResponse<T>
     )
     {
         Data = data;
-        Paging = new Paging<T>(totalItemCount, pageSize, previousCursor, nextCursor);
+        PageMetadata = new PageMetadata<T>(totalItemCount, pageSize, previousCursor, nextCursor);
     }
 }
 
-public class Paging<T>
+public class PageMetadata<T>
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? CurrentPage { get; set; }
@@ -49,7 +44,7 @@ public class Paging<T>
 
     public string? After { get; set; }
 
-    public Paging(int totalItemCount, int currentPage = 1, int pageSize = 10)
+    public PageMetadata(int totalItemCount, int currentPage = 1, int pageSize = 10)
     {
         CurrentPage = currentPage;
         PageSize = pageSize;
@@ -59,7 +54,7 @@ public class Paging<T>
         HasPreviousPage = currentPage > 1;
     }
 
-    public Paging(
+    public PageMetadata(
         int totalItemCount,
         int pageSize = 10,
         string? previousCursor = null,
