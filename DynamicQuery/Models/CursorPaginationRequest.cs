@@ -16,5 +16,11 @@ public class CursorPaginationRequest(
 
     public string? Sort { get; private set; } = sort;
 
-    public string UniqueSort { get; private set; } = uniqueSort;
+    public string UniqueSort { get; private set; } =
+        !string.IsNullOrWhiteSpace(uniqueSort)
+            ? uniqueSort
+            : throw new ArgumentException(
+                "UniqueSort cannot be null, empty, or whitespace.",
+                nameof(uniqueSort)
+            );
 }

@@ -1,13 +1,12 @@
 using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
+using DotNetCoreExtension.Extensions;
+using DotNetCoreExtension.Extensions.Expressions;
+using DotNetCoreExtension.Extensions.Reflections;
 using DynamicQuery.Enums;
 using DynamicQuery.Results;
 using Microsoft.EntityFrameworkCore;
-using SharedKernel.Exceptions;
-using SharedKernel.Extensions;
-using SharedKernel.Extensions.Expressions;
-using SharedKernel.Extensions.Reflections;
 
 namespace DynamicQuery.Extensions;
 

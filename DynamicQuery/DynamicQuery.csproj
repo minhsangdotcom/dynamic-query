@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>TranMinhSang.DynamicQueryExtension.EntityFrameworkCore</PackageId>
-    <Version>0.1.2</Version>
+    <Version>1.0.0</Version>
     <Authors>Tran Minh Sang</Authors>
     <Company>minhsangdotcom</Company>
     <PackageTags>csharp,DynamicQuery, Extension, EntityFrameworkCore</PackageTags>
@@ -15,9 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="minhsangdotcom.TheTemplate.SharedKernel" Version="1.0.13" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="TranMinhSang.AspNetCore.Extensions" Version="1.0.0" />
 
     <None Include="../README-NUGET.md" Pack="true" PackagePath="" />
   </ItemGroup>

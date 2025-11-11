@@ -1,13 +1,13 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using DotNetCoreExtension.Extensions;
+using DotNetCoreExtension.Extensions.Expressions;
+using DotNetCoreExtension.Extensions.Reflections;
+using DynamicQuery.Constants;
 using DynamicQuery.Models;
 using DynamicQuery.Results;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
-using SharedKernel.Extensions;
-using SharedKernel.Extensions.Expressions;
-using SharedKernel.Extensions.Reflections;
-using SharedKernel.Models;
 
 namespace DynamicQuery.Extensions;
 
@@ -94,7 +94,8 @@ public static class PaginationExtension
                 originalSort,
                 sort,
                 request.Size,
-                totalPage
+                totalPage,
+                request.UniqueSort.Trim().Split(OrderTerm.DELIMITER)[0]
             )
         );
 
@@ -144,7 +145,10 @@ public static class PaginationExtension
 
         var cursor = payload.IsPrevious ? first : last;
         var flag = payload.IsPrevious ? payload.First : payload.Last;
-        if (count < payload.Size || (count == payload.Size && CompareToTheFlag(cursor, flag)))
+        if (
+            count < payload.Size
+            || (count == payload.Size && CompareToTheFlag(cursor, flag, payload.UniqueKey))
+        )
         {
             if (!payload.IsPrevious)
             {
@@ -384,23 +388,13 @@ public static class PaginationExtension
     /// <param name="cursor"></param>
     /// <param name="destination"></param>
     /// <returns>true we're not gonna move</returns>
-    private static bool CompareToTheFlag<T>(T cursor, T destination)
+    private static bool CompareToTheFlag<T>(T cursor, T destination, string uniqueKey)
     {
-        PropertyInfo cursorPropertyInfo = typeof(T).GetNestedPropertyInfo(
-            nameof(DefaultBaseResponse.Id)
-        );
-        object? cursorProperty = typeof(T).GetNestedPropertyValue(
-            nameof(DefaultBaseResponse.Id),
-            cursor!
-        );
+        PropertyInfo cursorPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueKey);
+        object? cursorProperty = typeof(T).GetNestedPropertyValue(uniqueKey, cursor!);
 
-        PropertyInfo destinationPropertyInfo = typeof(T).GetNestedPropertyInfo(
-            nameof(DefaultBaseResponse.Id)
-        );
-        object? desProperty = typeof(T).GetNestedPropertyValue(
-            nameof(DefaultBaseResponse.Id),
-            destination!
-        );
+        PropertyInfo destinationPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueKey);
+        object? desProperty = typeof(T).GetNestedPropertyValue(uniqueKey, destination!);
 
         if (cursorPropertyInfo.PropertyType != destinationPropertyInfo.PropertyType)
         {
@@ -507,7 +501,8 @@ internal record PaginationPayload<T>(
     string OriginalSort,
     string Sort,
     int Size,
-    int ActualSize
+    int ActualSize,
+    string UniqueKey
 );
 
 internal record ProcessResultPayload<T>(
