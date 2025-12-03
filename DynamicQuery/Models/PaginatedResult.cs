@@ -8,7 +8,12 @@ public class PaginatedResult<T>
 
     public PageMetadata<T>? PageMetadata { get; private set; }
 
-    public PaginatedResult(IEnumerable<T> data, int totalItemCount, int currentPage, int pageSize)
+    public PaginatedResult(
+        IEnumerable<T> data,
+        long totalItemCount,
+        long currentPage,
+        long pageSize
+    )
     {
         Data = data;
         PageMetadata = new PageMetadata<T>(totalItemCount, currentPage, pageSize);
@@ -16,8 +21,8 @@ public class PaginatedResult<T>
 
     public PaginatedResult(
         IEnumerable<T> data,
-        int totalItemCount,
-        int pageSize,
+        long totalItemCount,
+        long pageSize,
         string? previousCursor = null,
         string? nextCursor = null
     )
@@ -30,11 +35,14 @@ public class PaginatedResult<T>
 public class PageMetadata<T>
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? CurrentPage { get; set; }
+    public long? CurrentPage { get; set; }
 
-    public int PageSize { get; set; }
+    public long PageSize { get; set; }
 
-    public int TotalPage { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? TotalItems { get; set; }
+
+    public long TotalPage { get; set; }
 
     public bool? HasNextPage { get; set; }
 
@@ -44,25 +52,26 @@ public class PageMetadata<T>
 
     public string? After { get; set; }
 
-    public PageMetadata(int totalItemCount, int currentPage = 1, int pageSize = 10)
+    public PageMetadata(long totalItemCount, long currentPage = 1, long pageSize = 100)
     {
         CurrentPage = currentPage;
         PageSize = pageSize;
-        TotalPage = (int)Math.Ceiling(totalItemCount / (double)pageSize);
+        TotalPage = (long)Math.Ceiling(totalItemCount / (double)pageSize);
+        TotalItems = totalItemCount;
 
         HasNextPage = CurrentPage < TotalPage;
         HasPreviousPage = currentPage > 1;
     }
 
     public PageMetadata(
-        int totalItemCount,
-        int pageSize = 10,
+        long totalItemCount,
+        long pageSize = 100,
         string? previousCursor = null,
         string? nextCursor = null
     )
     {
         PageSize = pageSize;
-        TotalPage = (int)Math.Ceiling(totalItemCount / (double)pageSize);
+        TotalPage = (long)Math.Ceiling(totalItemCount / (double)pageSize);
         After = nextCursor;
         HasNextPage = nextCursor != null;
         Before = previousCursor;

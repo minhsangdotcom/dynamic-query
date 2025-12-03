@@ -127,7 +127,7 @@ public static class PaginationExtension
             List<T> pagedList = await list.ToListAsync();
             string? theNextCursor =
                 payload.ActualSize > payload.Size ? EncodeCursor(theLast, payload.Sort) : null;
-            return new PaginationResult<T>(pagedList, pagedList.Count, theNextCursor);
+            return new PaginationResult<T>(pagedList, payload.Size, theNextCursor);
         }
 
         Dictionary<string, object?>? cursorObject = DecodeCursor(payload.Cursor);
@@ -160,7 +160,7 @@ public static class PaginationExtension
             }
         }
 
-        return new PaginationResult<T>(await sortedList.ToListAsync(), count, next, pre);
+        return new PaginationResult<T>(await sortedList.ToListAsync(), payload.Size, next, pre);
     }
 
     /// <summary>
