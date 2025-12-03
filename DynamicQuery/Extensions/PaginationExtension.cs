@@ -125,13 +125,23 @@ public static class PaginationExtension
             T? theLast = list.LastOrDefault();
 
             List<T> pagedList = await list.ToListAsync();
-            string? theNextCursor =
+            string? nextCursor =
                 payload.ActualSize > payload.Size ? EncodeCursor(theLast, payload.Sort) : null;
-            return new PaginationResult<T>(pagedList, payload.Size, theNextCursor);
+            return new PaginationResult<T>(pagedList, payload.Size, nextCursor);
         }
 
-        Dictionary<string, object?>? cursorObject = DecodeCursor(payload.Cursor);
-        IQueryable<T> data = MoveForwardOrBackwardAsync(payload.Query, cursorObject!, payload.Sort)
+        CursorPayload? cursorPayload =
+            DecodeCursor(payload.Cursor) ?? throw new Exception("Cursor decode failed");
+        if (!string.Equals(payload.Sort, cursorPayload.Sort, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Cursor sort mismatch");
+        }
+
+        IQueryable<T> data = MoveForwardOrBackwardAsync(
+                payload.Query,
+                cursorPayload.Properties,
+                payload.Sort
+            )
             .Take(payload.Size);
         IQueryable<T> sortedList = payload.IsPrevious ? data.Sort(payload.OriginalSort) : data;
 
@@ -147,7 +157,7 @@ public static class PaginationExtension
         var flag = payload.IsPrevious ? payload.First : payload.Last;
         if (
             count < payload.Size
-            || (count == payload.Size && CompareToTheFlag(cursor, flag, payload.UniqueKey))
+            || (count == payload.Size && IsEndOfPage(cursor, flag, payload.UniqueKey))
         )
         {
             if (!payload.IsPrevious)
@@ -382,33 +392,34 @@ public static class PaginationExtension
     }
 
     /// <summary>
-    /// make sure that whether we have next or previous move
+    /// make sure that whether we reach the end of page.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="cursor"></param>
-    /// <param name="destination"></param>
-    /// <returns>true we're not gonna move</returns>
-    private static bool CompareToTheFlag<T>(T cursor, T destination, string uniqueKey)
+    /// <param name="theLast">the last item</param>
+    ///  <param name="uniqueField"></param>
+    /// <returns>true if we reach</returns>
+    private static bool IsEndOfPage<T>(T cursor, T theLastItem, string uniqueField)
     {
-        PropertyInfo cursorPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueKey);
-        object? cursorProperty = typeof(T).GetNestedPropertyValue(uniqueKey, cursor!);
+        PropertyInfo cursorPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueField);
+        object? cursorValue = typeof(T).GetNestedPropertyValue(uniqueField, cursor!);
 
-        PropertyInfo destinationPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueKey);
-        object? desProperty = typeof(T).GetNestedPropertyValue(uniqueKey, destination!);
+        PropertyInfo destinationPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueField);
+        object? theLastItemValue = typeof(T).GetNestedPropertyValue(uniqueField, theLastItem!);
 
         if (cursorPropertyInfo.PropertyType != destinationPropertyInfo.PropertyType)
         {
-            throw new Exception($"{cursor} and {destination} key is difference");
+            throw new Exception($"{cursor} and {theLastItem} key is difference");
         }
 
-        if (cursorProperty == null || desProperty == null)
+        if (cursorValue == null || theLastItemValue == null)
         {
-            throw new Exception($"{cursor} or {destination} key is null");
+            throw new Exception($"{cursor} or {theLastItem} key is null");
         }
 
         return cursorPropertyInfo.PropertyType == typeof(Ulid)
-            ? ((Ulid)cursorProperty).CompareTo((Ulid)desProperty) == 0
-            : cursorProperty == desProperty;
+            ? ((Ulid)cursorValue).CompareTo((Ulid)theLastItemValue) == 0
+            : cursorValue == theLastItemValue;
     }
 
     /// <summary>
@@ -436,13 +447,11 @@ public static class PaginationExtension
         return properties;
     }
 
-    private static Dictionary<string, object?>? DecodeCursor(string cursor)
+    private static CursorPayload? DecodeCursor(string cursor)
     {
         string stringCursor = cursor.DecompressString();
-        var serializeResult = JsonConvert.DeserializeObject<Dictionary<string, object?>>(
-            stringCursor
-        );
-        return serializeResult;
+        var cursorPayload = JsonConvert.DeserializeObject<CursorPayload>(stringCursor);
+        return cursorPayload;
     }
 
     private static string? EncodeCursor<T>(T? entity, string sort)
@@ -453,7 +462,8 @@ public static class PaginationExtension
         }
 
         Dictionary<string, object?> properties = GetEncryptionProperties(entity, sort);
-        string json = JsonConvert.SerializeObject(properties, Formatting.Indented);
+        CursorPayload cursorPayload = new(sort, properties);
+        string json = JsonConvert.SerializeObject(cursorPayload, Formatting.Indented);
         return json.CompressString();
     }
 
@@ -488,9 +498,11 @@ public static class PaginationExtension
     /// <returns></returns>
     private static List<string> SortFields(string sort)
     {
-        return TransformSort(sort).Select(field => field.Key).ToList();
+        return [.. TransformSort(sort).Select(field => field.Key)];
     }
 }
+
+internal record CursorPayload(string Sort, Dictionary<string, object?> Properties);
 
 internal record PaginationPayload<T>(
     IQueryable<T> Query,
