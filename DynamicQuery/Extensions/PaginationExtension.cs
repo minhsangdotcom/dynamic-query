@@ -64,7 +64,7 @@ public static class PaginationExtension
         CursorPaginationRequest request
     )
     {
-        string sort = $"{request.Sort},{request.UniqueSort}";
+        string sort = RemoveAscOrder($"{request.Sort},{request.UniqueSort}");
         int totalPage = query.Count();
         if (totalPage == 0)
         {
@@ -84,7 +84,7 @@ public static class PaginationExtension
             sortedQuery = sortedQuery.Sort(sort);
         }
 
-        PaginationResult<T> result = await CursorPaginateAsync(
+        PaginationResult<T> result = await PaginateWithCursorAsync(
             new PaginationPayload<T>(
                 sortedQuery,
                 request.After ?? request.Before,
@@ -114,7 +114,7 @@ public static class PaginationExtension
     /// <typeparam name="T"></typeparam>
     /// <param name="payload"></param>
     /// <returns></returns>
-    private static async Task<PaginationResult<T>> CursorPaginateAsync<T>(
+    private static async Task<PaginationResult<T>> PaginateWithCursorAsync<T>(
         PaginationPayload<T> payload
     )
     {
@@ -132,7 +132,10 @@ public static class PaginationExtension
 
         CursorPayload? cursorPayload =
             DecodeCursor(payload.Cursor) ?? throw new Exception("Cursor decode failed");
-        if (!string.Equals(payload.Sort, cursorPayload.Sort, StringComparison.OrdinalIgnoreCase))
+        string cursorSort = payload.IsPrevious
+            ? ReverseSortOrder(cursorPayload.Sort)
+            : cursorPayload.Sort;
+        if (!string.Equals(payload.Sort, cursorSort, StringComparison.OrdinalIgnoreCase))
         {
             throw new Exception("Cursor sort mismatch");
         }
@@ -178,7 +181,7 @@ public static class PaginationExtension
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="query"></param>
-    /// <param name="cursors">consist of property name and it's value in cursor</param>
+    /// <param name="cursors">consist of property names and its value in cursor</param>
     /// <param name="sort"></param>
     /// <returns></returns>
     private static IQueryable<T> MoveForwardOrBackwardAsync<T>(
@@ -363,15 +366,18 @@ public static class PaginationExtension
     /// <returns></returns>
     private static string ReverseSortOrder(string input)
     {
-        // Split the input by comma to separate each field
-        var fields = input.Split(',');
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
 
-        // Process each field
+        string[] fields = input.Split(',', StringSplitOptions.TrimEntries);
+
         for (int i = 0; i < fields.Length; i++)
         {
-            var parts = fields[i].Split(OrderTerm.DELIMITER);
-            string fieldName = parts[0]; // The actual field name
-            string sortOrder = parts.Length > 1 ? parts[1] : OrderTerm.ASC; // Default to asc if no order specified
+            string[] parts = fields[i].Split(OrderTerm.DELIMITER, StringSplitOptions.TrimEntries);
+            string fieldName = parts[0];
+            string sortOrder = parts.Length > 1 ? parts[1].ToLowerInvariant() : OrderTerm.ASC;
 
             // Reverse the sort order
             if (sortOrder == OrderTerm.ASC)
@@ -383,12 +389,54 @@ public static class PaginationExtension
                 sortOrder = OrderTerm.ASC;
             }
 
-            // Rebuild the field with the new sort order
-            fields[i] = $"{fieldName}:{sortOrder}";
+            // Rebuild string — remove :asc, keep :desc
+            fields[i] =
+                sortOrder == OrderTerm.ASC
+                    ? fieldName
+                    : fieldName + OrderTerm.DELIMITER + sortOrder;
         }
 
-        // Join the fields back into a single string and return
         return string.Join(",", fields);
+    }
+
+    private static string RemoveAscOrder(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        string[] parts = input.Split(',', StringSplitOptions.TrimEntries);
+        List<string> result = [];
+
+        foreach (string part in parts)
+        {
+            if (string.IsNullOrWhiteSpace(part))
+            {
+                continue;
+            }
+
+            string[] tokens = part.Split(OrderTerm.DELIMITER, StringSplitOptions.TrimEntries);
+            string property = tokens[0];
+
+            if (tokens.Length == 1)
+            {
+                result.Add(property);
+                continue;
+            }
+
+            string order = tokens[1].ToLowerInvariant();
+            if (order == OrderTerm.ASC)
+            {
+                result.Add(property);
+            }
+            else
+            {
+                result.Add(property + OrderTerm.DELIMITER + order);
+            }
+        }
+
+        return string.Join(",", result);
     }
 
     /// <summary>
