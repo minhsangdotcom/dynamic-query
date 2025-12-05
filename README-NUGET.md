@@ -7,11 +7,34 @@
 - Filter with LHS Bracket syntax
 - Pagination with offset pagination and Cursor Pagination
 
+# NOTE
+
+Expect code work properly, if you currently work with PostgreSQL, Add this line in your DbContext
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    modelBuilder.HasDbFunction(
+        typeof(PostgresDbFunctionExtensions).GetMethod(
+            nameof(PostgresDbFunctionExtensions.Unaccent)
+        )!
+    );
+}
+```
+
+**The Search and Filter methods accept a DbContextProvider enum**.
+
+**PostgreSQL works out of the box, but for other databases you must select the appropriate provider**.
+
+**Supported providers: PostgreSQL, MySQL, and SQL Server**
+
 # How to use
 
 The First parameter is the key word
 The Second one is The Specific fields that You wanna search
-The Third is how deep this could search
+The Third is how deep this could search.
+
+Using Database isn't PostgreSql, Pass your DbContextProvider.
 
 ```csharp
 
@@ -113,9 +136,9 @@ For more examples and get better understand, you can visit
 [https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication#complex-filtering](https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication#complex-filtering)\
 [https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication#deep-filtering](https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication#deep-filtering)
 
-'Cause I designed filter input based on [Strapi filter](https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication)
+I designed filter input based on [Strapi filter](https://docs.strapi.io/dev-docs/api/rest/filters-locale-publication)
 
-
+Using Database isn't PostgreSql, Pass your DbContextProvider as parameter to Filter method.
 
 ```csharp
 public string[] GetFilterQueries(string query, string filterKey)
