@@ -485,7 +485,9 @@ public static class PaginationExtension
         {
             if (!typeof(T).IsNestedPropertyValid(field))
             {
-                ArgumentNullException.ThrowIfNull(nameof(field), field);
+                throw new ArgumentException(
+                    $"Invalid property name '{nameof(field)}' for type {typeof(T).Name}."
+                );
             }
 
             object? value = typeof(T).GetNestedPropertyValue(field, entity!);
