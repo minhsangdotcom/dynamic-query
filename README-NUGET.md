@@ -9,8 +9,18 @@
 
 # NOTE
 
-Expect code work properly, if you currently work with PostgreSQL, Add this line in your DbContext
+## ⚠️ PostgreSQL `unaccent` requirement
 
+If you are using **PostgreSQL**, you **MUST enable the `unaccent` extension before running the application or applying migrations**.
+
+### 1 Enable `unaccent` in PostgreSQL (run first)
+
+Run this SQL **once per database**:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS unaccent;
+```
+### 2 After the extension is enabled, add the following code to your DbContext:
 ```csharp
 protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
