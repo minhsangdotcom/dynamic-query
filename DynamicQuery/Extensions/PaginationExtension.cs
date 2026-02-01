@@ -152,12 +152,13 @@ public static class PaginationExtension
         T? first = sortedList.FirstOrDefault();
         int count = sortedList.Count();
 
-        // whether or not we're currently at first or last page
-        string? next = EncodeCursor(last, payload.Sort);
-        string? pre = EncodeCursor(first, payload.Sort);
+        string? next = EncodeCursor(last, payload.OriginalSort);
+        string? pre = EncodeCursor(first, payload.OriginalSort);
 
-        var cursor = payload.IsPrevious ? first : last;
-        var flag = payload.IsPrevious ? payload.First : payload.Last;
+        T? cursor = payload.IsPrevious ? first : last;
+
+        // whether or not we're currently at first or last page
+        T flag = payload.IsPrevious ? payload.First : payload.Last;
         if (
             count < payload.Size
             || (count == payload.Size && IsEndOfPage(cursor, flag, payload.UniqueKey))
@@ -447,13 +448,36 @@ public static class PaginationExtension
     /// <param name="theLast">the last item</param>
     ///  <param name="uniqueField"></param>
     /// <returns>true if we reach</returns>
-    private static bool IsEndOfPage<T>(T cursor, T theLastItem, string uniqueField)
+    private static bool IsEndOfPage<T>(T? cursor, T? theLastItem, string uniqueField)
     {
+        if (string.IsNullOrWhiteSpace(uniqueField))
+        {
+            throw new ArgumentException(
+                "Unique field cannot be null or empty.",
+                nameof(uniqueField)
+            );
+        }
+
+        if (cursor is null)
+        {
+            throw new ArgumentNullException(
+                nameof(cursor),
+                "Cursor cannot be null when checking end of page."
+            );
+        }
+
+        if (theLastItem is null)
+        {
+            throw new ArgumentNullException(
+                nameof(theLastItem),
+                "The last item cannot be null when checking end of page."
+            );
+        }
         PropertyInfo cursorPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueField);
-        object? cursorValue = typeof(T).GetNestedPropertyValue(uniqueField, cursor!);
+        object? cursorValue = typeof(T).GetNestedPropertyValue(uniqueField, cursor);
 
         PropertyInfo destinationPropertyInfo = typeof(T).GetNestedPropertyInfo(uniqueField);
-        object? theLastItemValue = typeof(T).GetNestedPropertyValue(uniqueField, theLastItem!);
+        object? theLastItemValue = typeof(T).GetNestedPropertyValue(uniqueField, theLastItem);
 
         if (cursorPropertyInfo.PropertyType != destinationPropertyInfo.PropertyType)
         {
