@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json;
 using DotNetCoreExtension.Extensions;
 using DotNetCoreExtension.Extensions.Expressions;
 using DotNetCoreExtension.Extensions.Reflections;
@@ -34,6 +35,38 @@ public static class FilterExtension
 
     public static IEnumerable<T> Filter<T>(this IEnumerable<T> query, object? filterObject) =>
         query.AsQueryable().Filter(filterObject);
+
+    // public static IEnumerable<T> Filter<T>(
+    //     this IEnumerable<T> query,
+    //     object? filterObject,
+    //     DbProvider? dbProvider = DbProvider.Postgresql
+    // )
+    // {
+    //     if (filterObject == null)
+    //     {
+    //         return query;
+    //     }
+    //     string cacheKey = BuildFilterCacheKey<T>(filterObject, dbProvider);
+    //     Func<T, bool> predicate = DelegateDictionaryCache.GetOrAdd(
+    //         cacheKey,
+    //         () =>
+    //         {
+    //             Type type = typeof(T);
+    //             ParameterExpression parameter = Expression.Parameter(type, "a");
+    //             Expression expression = FilterExpression(
+    //                 filterObject,
+    //                 parameter,
+    //                 type,
+    //                 "b",
+    //                 dbProvider
+    //             );
+
+    //             return Expression.Lambda<Func<T, bool>>(expression, parameter).Compile();
+    //         }
+    //     );
+
+    //     return query.Where(predicate);
+    // }
 
     private static Expression FilterExpression(
         dynamic filterObject,
@@ -526,34 +559,46 @@ public static class FilterExtension
     private static readonly Dictionary<
         OperationType,
         Func<Expression, Expression, BinaryExpression>
-    > BinaryComparisons =
-        new()
-        {
-            { OperationType.Eq, Expression.Equal },
-            { OperationType.EqI, Expression.Equal },
-            { OperationType.Ne, Expression.NotEqual },
-            { OperationType.NeI, Expression.NotEqual },
-            { OperationType.Lt, Expression.LessThan },
-            { OperationType.Lte, Expression.LessThanOrEqual },
-            { OperationType.Gt, Expression.GreaterThan },
-            { OperationType.Gte, Expression.GreaterThanOrEqual },
-        };
+    > BinaryComparisons = new()
+    {
+        { OperationType.Eq, Expression.Equal },
+        { OperationType.EqI, Expression.Equal },
+        { OperationType.Ne, Expression.NotEqual },
+        { OperationType.NeI, Expression.NotEqual },
+        { OperationType.Lt, Expression.LessThan },
+        { OperationType.Lte, Expression.LessThanOrEqual },
+        { OperationType.Gt, Expression.GreaterThan },
+        { OperationType.Gte, Expression.GreaterThanOrEqual },
+    };
 
     private static readonly Dictionary<
         OperationType,
         KeyValuePair<Type, string>
-    > MethodCallComparisons =
-        new()
-        {
-            { OperationType.In, new(typeof(Enumerable), nameof(Enumerable.Contains)) },
-            { OperationType.NotIn, new(typeof(Enumerable), nameof(Enumerable.Contains)) },
-            { OperationType.Contains, new(typeof(string), nameof(string.Contains)) },
-            { OperationType.ContainsI, new(typeof(string), nameof(string.Contains)) },
-            { OperationType.NotContains, new(typeof(string), nameof(string.Contains)) },
-            { OperationType.NotContainsI, new(typeof(string), nameof(string.Contains)) },
-            { OperationType.StartsWith, new(typeof(string), nameof(string.StartsWith)) },
-            { OperationType.EndsWith, new(typeof(string), nameof(string.EndsWith)) },
-        };
+    > MethodCallComparisons = new()
+    {
+        { OperationType.In, new(typeof(Enumerable), nameof(Enumerable.Contains)) },
+        { OperationType.NotIn, new(typeof(Enumerable), nameof(Enumerable.Contains)) },
+        { OperationType.Contains, new(typeof(string), nameof(string.Contains)) },
+        { OperationType.ContainsI, new(typeof(string), nameof(string.Contains)) },
+        { OperationType.NotContains, new(typeof(string), nameof(string.Contains)) },
+        { OperationType.NotContainsI, new(typeof(string), nameof(string.Contains)) },
+        { OperationType.StartsWith, new(typeof(string), nameof(string.StartsWith)) },
+        { OperationType.EndsWith, new(typeof(string), nameof(string.EndsWith)) },
+    };
+
+    private static string BuildFilterCacheKey<T>(object filterObject, DbProvider? dbProvider)
+    {
+        string json = JsonSerializer.Serialize(
+            filterObject,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false,
+            }
+        );
+
+        return $"FILTER:{typeof(T).FullName}:{filterObject.GetType().FullName}:{dbProvider}:{json}";
+    }
 }
 
 internal record ConvertObjectTypeResult(

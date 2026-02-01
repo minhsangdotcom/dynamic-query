@@ -63,13 +63,20 @@ public static class SearchExtensions
             return query;
         }
 
-        SearchResult searchResult = Search<T>(fields, keyword, deep, true);
-
-        return query.Where(
-            Expression
-                .Lambda<Func<T, bool>>(searchResult.Expression, searchResult.Parameter)
-                .Compile()
+        string cacheKey =
+            $"SEARCH:{typeof(T).FullName}:{keyword}:{string.Join("|", fields ?? [])}:{deep}";
+        Func<T, bool> predicate = DelegateDictionaryCache.GetOrAdd(
+            cacheKey,
+            () =>
+            {
+                SearchResult searchResult = Search<T>(fields, keyword, deep, true);
+                return Expression
+                    .Lambda<Func<T, bool>>(searchResult.Expression, searchResult.Parameter)
+                    .Compile();
+            }
         );
+
+        return query.Where(predicate);
     }
 
     private static SearchResult Search<T>(

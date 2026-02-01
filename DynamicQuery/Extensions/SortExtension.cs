@@ -40,7 +40,10 @@ public static class SortExtension
 
             if (!typeof(T).IsNestedPropertyValid(field))
             {
-                throw new Exception($"type {field} is not found");
+                throw new ArgumentException(
+                    $"Property '{field}' was not found on type '{typeof(T).Name}'.",
+                    nameof(sortBy)
+                );
             }
 
             string order = orderField.Length == 1 ? OrderTerm.ASC : orderField[1];
@@ -75,6 +78,61 @@ public static class SortExtension
         return entities.Provider.CreateQuery<T>(expression);
     }
 
-    public static IEnumerable<T> Sort<T>(this IEnumerable<T> entities, string sortBy) =>
-        entities.AsQueryable().Sort(sortBy, isNullCheck: true);
+    public static IEnumerable<T> Sort<T>(this IEnumerable<T> source, string sortBy)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy))
+        {
+            return source;
+        }
+
+        string[] sorts = sortBy.Split(",", StringSplitOptions.TrimEntries);
+
+        IOrderedEnumerable<T>? ordered = null;
+        const bool isNullCheck = true;
+        foreach (string sort in sorts)
+        {
+            string[] orderField = sort.Split(OrderTerm.DELIMITER);
+            string field = orderField[0];
+
+            if (!typeof(T).IsNestedPropertyValid(field))
+            {
+                throw new ArgumentException(
+                    $"Property '{field}' was not found on type '{typeof(T).Name}'.",
+                    nameof(sortBy)
+                );
+            }
+
+            string order = orderField.Length == 1 ? OrderTerm.ASC : orderField[1];
+
+            string cacheKey = $"SORT:{typeof(T).FullName}:{sort}:{isNullCheck}";
+            Func<T, object?> keySelector = DelegateDictionaryCache.GetOrAdd(
+                cacheKey,
+                () =>
+                {
+                    ParameterExpression param = Expression.Parameter(typeof(T), "x");
+                    Expression body = param.MemberExpression<T>(field, isNullCheck);
+                    UnaryExpression converted = Expression.Convert(body, typeof(object));
+
+                    return Expression.Lambda<Func<T, object?>>(converted, param).Compile();
+                }
+            );
+
+            if (ordered == null)
+            {
+                ordered =
+                    order == OrderTerm.DESC
+                        ? source.OrderByDescending(keySelector)
+                        : source.OrderBy(keySelector);
+            }
+            else
+            {
+                ordered =
+                    order == OrderTerm.DESC
+                        ? ordered.ThenByDescending(keySelector)
+                        : ordered.ThenBy(keySelector);
+            }
+        }
+
+        return ordered ?? source;
+    }
 }
