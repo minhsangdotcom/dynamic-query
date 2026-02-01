@@ -64,7 +64,7 @@ public static class PaginationExtension
         CursorPaginationRequest request
     )
     {
-        string sort = RemoveAscOrder($"{request.Sort},{request.UniqueSort}");
+        string sort = RemoveAscOrder(request.Sort);
         int totalPage = query.Count();
         if (totalPage == 0)
         {

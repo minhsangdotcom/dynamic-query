@@ -29,6 +29,6 @@ public class CursorPaginationRequest
         Size = size;
         UniqueSort = uniqueSort;
 
-        Sort = string.IsNullOrWhiteSpace(sort) ? UniqueSort : sort;
+        Sort = string.IsNullOrWhiteSpace(sort) ? UniqueSort : $"{sort},{UniqueSort}";
     }
 }
