@@ -28,14 +28,9 @@ public static class PaginationExtension
         CancellationToken cancellationToken = default
     )
     {
-        int totalPage = query.Count();
-
-        return new PaginatedResult<T>(
-            await query.Skip((current - 1) * size).Take(size).ToListAsync(cancellationToken),
-            totalPage,
-            current,
-            size
-        );
+        int totalItemCount = query.Count();
+        var data = await query.Skip((current - 1) * size).Take(size).ToListAsync(cancellationToken);
+        return new PaginatedResult<T>(data, totalItemCount, current, size);
     }
 
     /// <summary>
@@ -61,47 +56,51 @@ public static class PaginationExtension
     /// <returns></returns>
     public static async Task<PaginatedResult<T>> ToCursorPagedListAsync<T>(
         this IQueryable<T> query,
-        CursorPaginationRequest request
+        CursorPaginationRequest request,
+        CancellationToken cancellationToken = default
     )
     {
         string sort = RemoveAscOrder(request.Sort);
-        int totalPage = query.Count();
-        if (totalPage == 0)
+        int totalItemCount = query.Count();
+        if (totalItemCount == 0)
         {
-            return new PaginatedResult<T>(await query.ToListAsync(), totalPage, request.Size);
+            return new PaginatedResult<T>(
+                await query.ToListAsync(cancellationToken),
+                totalItemCount,
+                request.Size
+            );
         }
 
-        bool IsPreviousMove = !string.IsNullOrWhiteSpace(request.Before);
+        bool isPreviousMove = !string.IsNullOrWhiteSpace(request.Before);
         string originalSort = sort;
 
         IQueryable<T> sortedQuery = query.Sort(originalSort);
         T? first = sortedQuery.FirstOrDefault();
         T? last = sortedQuery.LastOrDefault();
 
-        if (IsPreviousMove)
+        if (isPreviousMove)
         {
             sort = ReverseSortOrder(originalSort);
             sortedQuery = sortedQuery.Sort(sort);
         }
 
-        PaginationResult<T> result = await PaginateWithCursorAsync(
-            new PaginationPayload<T>(
-                sortedQuery,
-                request.After ?? request.Before,
-                IsPreviousMove,
-                first!,
-                last!,
-                originalSort,
-                sort,
-                request.Size,
-                totalPage,
-                request.UniqueSort.Trim().Split(OrderTerm.DELIMITER)[0]
-            )
+        PaginationPayload<T> payload = new(
+            sortedQuery,
+            request.After ?? request.Before,
+            isPreviousMove,
+            first!,
+            last!,
+            originalSort,
+            sort,
+            request.Size,
+            totalItemCount,
+            request.UniqueSort.Trim().Split(OrderTerm.DELIMITER)[0]
         );
+        PaginationResult<T> result = await PaginateWithCursorAsync(payload, cancellationToken);
 
         return new PaginatedResult<T>(
             result.Data,
-            totalPage,
+            totalItemCount,
             result.PageSize,
             result.Pre,
             result.Next
@@ -115,7 +114,8 @@ public static class PaginationExtension
     /// <param name="payload"></param>
     /// <returns></returns>
     private static async Task<PaginationResult<T>> PaginateWithCursorAsync<T>(
-        PaginationPayload<T> payload
+        PaginationPayload<T> payload,
+        CancellationToken cancellationToken = default
     )
     {
         // this is the first page
@@ -124,9 +124,11 @@ public static class PaginationExtension
             IQueryable<T> list = payload.Query.Take(payload.Size);
             T? theLast = list.LastOrDefault();
 
-            List<T> pagedList = await list.ToListAsync();
+            List<T> pagedList = await list.ToListAsync(cancellationToken);
             string? nextCursor =
-                payload.ActualSize > payload.Size ? EncodeCursor(theLast, payload.Sort) : null;
+                payload.ActualSize > payload.Size
+                    ? EncodeCursor(theLast, payload.OriginalSort)
+                    : null;
             return new PaginationResult<T>(pagedList, payload.Size, nextCursor);
         }
 
@@ -146,6 +148,7 @@ public static class PaginationExtension
                 payload.Sort
             )
             .Take(payload.Size);
+        // if this is previous moving, we need to do order by sorts user provided before
         IQueryable<T> sortedList = payload.IsPrevious ? data.Sort(payload.OriginalSort) : data;
 
         T? last = sortedList.LastOrDefault();
@@ -155,9 +158,8 @@ public static class PaginationExtension
         string? next = EncodeCursor(last, payload.OriginalSort);
         string? pre = EncodeCursor(first, payload.OriginalSort);
 
+        // check if we reach the last page
         T? cursor = payload.IsPrevious ? first : last;
-
-        // whether or not we're currently at first or last page
         T flag = payload.IsPrevious ? payload.First : payload.Last;
         if (
             count < payload.Size
@@ -174,7 +176,12 @@ public static class PaginationExtension
             }
         }
 
-        return new PaginationResult<T>(await sortedList.ToListAsync(), payload.Size, next, pre);
+        return new PaginationResult<T>(
+            await sortedList.ToListAsync(cancellationToken),
+            payload.Size,
+            next,
+            pre
+        );
     }
 
     /// <summary>
