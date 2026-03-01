@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -16,7 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="TranMinhSang.AspNetCore.Extensions" Version="1.0.1" />
+    <PackageReference Include="TranMinhSang.AspNetCore.Extensions" Version="1.0.2" />
     <None Include="../README-NUGET.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
@@ -34,5 +33,4 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
   </ItemGroup>
-
 </Project>

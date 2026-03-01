@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using ByteAether.Ulid;
 using DotNetCoreExtension.Extensions;
 using DotNetCoreExtension.Extensions.Expressions;
 using DotNetCoreExtension.Extensions.Reflections;
@@ -353,7 +354,15 @@ public static class PaginationExtension
 
     private static MethodCallExpression CompareUlidByExpression(Expression left, object? value)
     {
-        Ulid comparisonValue = value == null ? Ulid.Empty : Ulid.Parse(value!.ToString());
+        //Ulid comparisonValue = value == null ? Ulid.Empty : Ulid.Parse(value.ToString());
+        Ulid comparisonValue = value switch
+        {
+            null => Ulid.Empty,
+            Ulid u => u,
+            string s when !string.IsNullOrWhiteSpace(s) => Ulid.Parse(s),
+            _ => throw new ArgumentException("Invalid ULID value.", nameof(value)),
+        };
+
         MethodInfo? compareToMethod = typeof(Ulid).GetMethod(
             nameof(Ulid.CompareTo),
             [typeof(Ulid)]
@@ -498,7 +507,7 @@ public static class PaginationExtension
 
         return cursorPropertyInfo.PropertyType == typeof(Ulid)
             ? ((Ulid)cursorValue).CompareTo((Ulid)theLastItemValue) == 0
-            : cursorValue == theLastItemValue;
+            : Equals(cursorValue, theLastItemValue);
     }
 
     /// <summary>
