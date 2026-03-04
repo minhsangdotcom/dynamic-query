@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text.Json;
 using DotNetCoreExtension.Extensions;
 using DotNetCoreExtension.Extensions.Expressions;
 using DotNetCoreExtension.Extensions.Reflections;
@@ -33,47 +32,35 @@ public static class FilterExtension
         return query.Where(lamda);
     }
 
-    public static IEnumerable<T> Filter<T>(this IEnumerable<T> query, object? filterObject) =>
-        query.AsQueryable().Filter(filterObject);
+    public static IEnumerable<T> Filter<T>(this IEnumerable<T> query, object? filterObject)
+    {
+        if (filterObject == null)
+        {
+            return query;
+        }
 
-    // public static IEnumerable<T> Filter<T>(
-    //     this IEnumerable<T> query,
-    //     object? filterObject,
-    //     DbProvider? dbProvider = DbProvider.Postgresql
-    // )
-    // {
-    //     if (filterObject == null)
-    //     {
-    //         return query;
-    //     }
-    //     string cacheKey = BuildFilterCacheKey<T>(filterObject, dbProvider);
-    //     Func<T, bool> predicate = DelegateDictionaryCache.GetOrAdd(
-    //         cacheKey,
-    //         () =>
-    //         {
-    //             Type type = typeof(T);
-    //             ParameterExpression parameter = Expression.Parameter(type, "a");
-    //             Expression expression = FilterExpression(
-    //                 filterObject,
-    //                 parameter,
-    //                 type,
-    //                 "b",
-    //                 dbProvider
-    //             );
+        Type type = typeof(T);
+        ParameterExpression parameter = Expression.Parameter(type, "a");
+        Expression filterExpression = FilterExpression(
+            filterObject,
+            parameter,
+            type,
+            "b",
+            null,
+            true
+        );
 
-    //             return Expression.Lambda<Func<T, bool>>(expression, parameter).Compile();
-    //         }
-    //     );
-
-    //     return query.Where(predicate);
-    // }
+        var lambda = Expression.Lambda<Func<T, bool>>(filterExpression, parameter);
+        return query.Where(lambda.Compile());
+    }
 
     private static Expression FilterExpression(
         dynamic filterObject,
         Expression paramOrMember,
         Type type,
         string parameterName,
-        DbProvider? dbProvider
+        DbProvider? dbProvider,
+        bool isNullChecking = false
     )
     {
         var dynamicFilters = (IDictionary<string, object>)filterObject;
@@ -107,7 +94,9 @@ public static class FilterExtension
                 expression = ProcessList(
                     values,
                     new(paramOrMember, type, parameterName.NextUniformSequence()),
-                    isAndOperator == 0 && isOrOperator != 0
+                    isAndOperator == 0 && isOrOperator != 0,
+                    dbProvider,
+                    isNullChecking
                 );
             }
             else
@@ -115,13 +104,35 @@ public static class FilterExtension
                 PropertyInfo propertyInfo = type.GetNestedPropertyInfo(propertyName);
                 Type propertyType = propertyInfo.PropertyType;
 
-                Expression memberExpression = paramOrMember.MemberExpression(type, propertyName);
+                Expression memberExpression;
+                Expression nullCheckExpression = null!;
 
-                expression = ProcessObject(
+                if (isNullChecking)
+                {
+                    MemberExpressionResult result = paramOrMember.MemberExpressionNullCheck(
+                        type,
+                        propertyName
+                    );
+                    memberExpression = result.Member;
+                    nullCheckExpression = result.NullCheck;
+                }
+                else
+                {
+                    memberExpression = paramOrMember.MemberExpression(type, propertyName);
+                }
+
+                Expression filterExpr = ProcessObject(
                     propertyInfo,
                     new(memberExpression, propertyType, parameterName.NextUniformSequence(), value),
-                    dbProvider
+                    dbProvider,
+                    isNullChecking
                 );
+
+                // Combine null check with the filter expression
+                expression =
+                    nullCheckExpression != null
+                        ? Expression.AndAlso(nullCheckExpression, filterExpr)
+                        : filterExpr;
             }
 
             body = body == null ? expression : Expression.AndAlso(body, expression);
@@ -141,7 +152,8 @@ public static class FilterExtension
         IEnumerable<object> values,
         FilterExpressionPayload payload,
         bool isAndOperator = false,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider = null,
+        bool isNullChecking = false
     )
     {
         Expression body = null!;
@@ -152,7 +164,8 @@ public static class FilterExtension
                 payload.ParamOrMember,
                 payload.Type,
                 payload.ParameterName,
-                dbProvider
+                dbProvider,
+                isNullChecking
             );
 
             body =
@@ -173,7 +186,8 @@ public static class FilterExtension
     private static Expression ProcessObject(
         PropertyInfo propertyInfo,
         FilterExpressionPayload payload,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider,
+        bool isNullChecking = false
     )
     {
         Type propertyType = payload.Type;
@@ -192,7 +206,8 @@ public static class FilterExtension
                 anyParameter,
                 propertyType,
                 payload.ParameterName,
-                dbProvider
+                dbProvider,
+                isNullChecking
             );
 
             LambdaExpression anyLamda = Expression.Lambda(operationBody, anyParameter);
@@ -211,7 +226,8 @@ public static class FilterExtension
             payload.ParamOrMember,
             propertyType,
             payload.ParameterName,
-            dbProvider
+            dbProvider,
+            isNullChecking
         );
     }
 
@@ -226,7 +242,7 @@ public static class FilterExtension
         string operationString,
         Expression left,
         object right,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider
     )
     {
         OperationType operationType = GetOperationType(operationString);
@@ -244,7 +260,13 @@ public static class FilterExtension
                 throw new ArgumentException($"Operation {operationString} is not found");
             }
 
-            return CompareMethodCallOperations(left, right, callMethodType, operationType);
+            return CompareMethodCallOperations(
+                left,
+                right,
+                callMethodType,
+                operationType,
+                dbProvider
+            );
         }
 
         return CompareBinaryOperations(left, right, comparisonFunc!, operationType, dbProvider);
@@ -283,7 +305,7 @@ public static class FilterExtension
         object right,
         Func<Expression, Expression, BinaryExpression> comparisonFunc,
         OperationType operationType,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider
     )
     {
         if (
@@ -318,7 +340,7 @@ public static class FilterExtension
         object right,
         KeyValuePair<Type, string> callMethodType,
         OperationType operationType,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider
     )
     {
         if (operationType == OperationType.In || operationType == OperationType.NotIn)
@@ -585,20 +607,6 @@ public static class FilterExtension
         { OperationType.StartsWith, new(typeof(string), nameof(string.StartsWith)) },
         { OperationType.EndsWith, new(typeof(string), nameof(string.EndsWith)) },
     };
-
-    private static string BuildFilterCacheKey<T>(object filterObject, DbProvider? dbProvider)
-    {
-        string json = JsonSerializer.Serialize(
-            filterObject,
-            new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false,
-            }
-        );
-
-        return $"FILTER:{typeof(T).FullName}:{filterObject.GetType().FullName}:{dbProvider}:{json}";
-    }
 }
 
 internal record ConvertObjectTypeResult(

@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using ByteAether.Ulid;
 using DotNetCoreExtension.Extensions;
 using DotNetCoreExtension.Extensions.Expressions;
 using DotNetCoreExtension.Extensions.Reflections;
@@ -43,7 +44,7 @@ public static class SearchExtensions
     }
 
     /// <summary>
-    /// search for IEnumrable
+    /// search for IEnumerable
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="query"></param>
@@ -63,18 +64,10 @@ public static class SearchExtensions
             return query;
         }
 
-        string cacheKey =
-            $"SEARCH:{typeof(T).FullName}:{keyword}:{string.Join("|", fields ?? [])}:{deep}";
-        Func<T, bool> predicate = DelegateDictionaryCache.GetOrAdd(
-            cacheKey,
-            () =>
-            {
-                SearchResult searchResult = Search<T>(fields, keyword, deep, true);
-                return Expression
-                    .Lambda<Func<T, bool>>(searchResult.Expression, searchResult.Parameter)
-                    .Compile();
-            }
-        );
+        SearchResult searchResult = Search<T>(fields, keyword, deep, true);
+        var predicate = Expression
+            .Lambda<Func<T, bool>>(searchResult.Expression, searchResult.Parameter)
+            .Compile();
 
         return query.Where(predicate);
     }
@@ -84,7 +77,7 @@ public static class SearchExtensions
         string keyword,
         int deep,
         bool isNullCheck = false,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider = null
     )
     {
         if (deep < 0)
@@ -116,17 +109,11 @@ public static class SearchExtensions
         IEnumerable<string>? fields = null,
         int deep = 0,
         bool isNullCheck = false,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider = null
     )
     {
         Type type = typeof(T);
         ParameterExpression rootParameter = parameter;
-
-        // MethodCallExpression constant = Expression.Call(
-        //     Expression.Constant(keyword),
-        //     nameof(string.ToLower),
-        //     Type.EmptyTypes
-        // );
 
         Expression? body = null!;
         List<KeyValuePair<PropertyType, string>> searchFields =
@@ -136,7 +123,7 @@ public static class SearchExtensions
 
         if (searchFields.Count == 0)
         {
-            return body;
+            return Expression.Constant(true);
         }
 
         foreach (KeyValuePair<PropertyType, string> field in searchFields)
@@ -167,10 +154,7 @@ public static class SearchExtensions
     /// </summary>
     /// <param name="payload"></param>
     /// <returns></returns>
-    static Expression BuildAnyQuery(
-        BuildAnyQueryPayload payload,
-        DbProvider? dbProvider = DbProvider.Postgresql
-    )
+    static Expression BuildAnyQuery(BuildAnyQueryPayload payload, DbProvider? dbProvider = null)
     {
         string propertyPath = payload.PropertyPath;
         string keyword = payload.Keyword;
@@ -240,7 +224,8 @@ public static class SearchExtensions
                     keyword,
                     payload.ParameterName.NextUniformSequence(),
                     isNullChecking
-                )
+                ),
+                dbProvider
             );
             LambdaExpression anyLamda = Expression.Lambda(contains, anyParameter);
 
@@ -265,7 +250,8 @@ public static class SearchExtensions
                 payload.ParameterName.NextUniformSequence(),
                 isNullChecking,
                 nullCheck
-            )
+            ),
+            dbProvider
         );
     }
 
@@ -290,7 +276,7 @@ public static class SearchExtensions
         Expression parameter,
         string keyword,
         bool isNullCheck = false,
-        DbProvider? dbProvider = DbProvider.Postgresql
+        DbProvider? dbProvider = null
     )
     {
         MethodCallExpression valueExpression = Expression.Call(
@@ -302,6 +288,22 @@ public static class SearchExtensions
         if (!isNullCheck)
         {
             Expression member = parameter.MemberExpression(type, propertyName);
+            Type actualType = Nullable.GetUnderlyingType(member.Type) ?? member.Type;
+
+            if (actualType == typeof(Ulid))
+            {
+                Ulid parsedValue = Ulid.Parse(keyword);
+                Expression ulidConstant = Expression.Constant(parsedValue, actualType);
+
+                // If property is nullable Ulid
+                if (member.Type != actualType)
+                {
+                    ulidConstant = Expression.Convert(ulidConstant, member.Type);
+                }
+
+                return Expression.Equal(member, ulidConstant);
+            }
+
             if (dbProvider == DbProvider.Postgresql)
             {
                 return CompareCaseInSensitive(member, keyword);
@@ -318,6 +320,31 @@ public static class SearchExtensions
             type,
             propertyName
         );
+
+        Type actualMemberExpressionResultType =
+            Nullable.GetUnderlyingType(memberExpressionResult.Member.Type)
+            ?? memberExpressionResult.Member.Type;
+
+        if (actualMemberExpressionResultType == typeof(Ulid))
+        {
+            Ulid parsedValue = Ulid.Parse(keyword);
+            Expression ulidConstant = Expression.Constant(
+                parsedValue,
+                actualMemberExpressionResultType
+            );
+
+            // If property is nullable Ulid
+            if (memberExpressionResult.Member.Type != actualMemberExpressionResultType)
+            {
+                ulidConstant = Expression.Convert(ulidConstant, memberExpressionResult.Member.Type);
+            }
+
+            return Expression.Condition(
+                memberExpressionResult.NullCheck,
+                Expression.Equal(memberExpressionResult.Member, ulidConstant),
+                Expression.Constant(false)
+            );
+        }
 
         Expression lower = Expression.Call(
             memberExpressionResult.Member,
@@ -355,7 +382,7 @@ public static class SearchExtensions
     }
 
     /// <summary>
-    /// filter string propertiies of input
+    /// filter string properties of input
     /// </summary>
     /// <param name="type"></param>
     /// <param name="properties"></param>
@@ -368,14 +395,13 @@ public static class SearchExtensions
         var result = new List<KeyValuePair<PropertyType, string>>();
         foreach (var propertyPath in properties)
         {
-            if (
-                DotNetCoreExtension
-                    .Extensions.Reflections.PropertyInfoExtensions.GetNestedPropertyInfo(
-                        type,
-                        propertyPath
-                    )
-                    .PropertyType != typeof(string)
-            )
+            Type propertyPathType = DotNetCoreExtension
+                .Extensions.Reflections.PropertyInfoExtensions.GetNestedPropertyInfo(
+                    type,
+                    propertyPath
+                )
+                .PropertyType;
+            if (propertyPathType != typeof(string) && propertyPathType != typeof(Ulid))
             {
                 continue;
             }
@@ -413,13 +439,13 @@ public static class SearchExtensions
     /// </summary>
     /// <param name="type"></param>
     /// <param name="deep"></param>
-    /// <param name="parrentName"></param>
+    /// <param name="parentName"></param>
     /// <param name="propertyType"></param>
     /// <returns></returns>
     static List<KeyValuePair<PropertyType, string>> DetectStringProperties(
         Type type,
         int deep = 1,
-        string? parrentName = null,
+        string? parentName = null,
         PropertyType? propertyType = null
     )
     {
@@ -437,7 +463,7 @@ public static class SearchExtensions
                 .Where(x => x.PropertyType == typeof(string))
                 .Select(x => new KeyValuePair<PropertyType, string>(
                     propertyType ?? PropertyType.Property,
-                    parrentName != null ? $"{parrentName}.{x.Name}" : x.Name
+                    parentName != null ? $"{parentName}.{x.Name}" : x.Name
                 )),
         ];
 
@@ -456,7 +482,7 @@ public static class SearchExtensions
         foreach (var propertyInfo in collectionObjectProperties)
         {
             string currentName =
-                parrentName != null ? $"{parrentName}.{propertyInfo.Name}" : propertyInfo.Name;
+                parentName != null ? $"{parentName}.{propertyInfo.Name}" : propertyInfo.Name;
 
             if (propertyInfo.IsArrayGenericType())
             {

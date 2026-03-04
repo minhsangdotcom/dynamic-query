@@ -104,18 +104,10 @@ public static class SortExtension
 
             string order = orderField.Length == 1 ? OrderTerm.ASC : orderField[1];
 
-            string cacheKey = $"SORT:{typeof(T).FullName}:{sort}:{isNullCheck}";
-            Func<T, object?> keySelector = DelegateDictionaryCache.GetOrAdd(
-                cacheKey,
-                () =>
-                {
-                    ParameterExpression param = Expression.Parameter(typeof(T), "x");
-                    Expression body = param.MemberExpression<T>(field, isNullCheck);
-                    UnaryExpression converted = Expression.Convert(body, typeof(object));
-
-                    return Expression.Lambda<Func<T, object?>>(converted, param).Compile();
-                }
-            );
+            ParameterExpression param = Expression.Parameter(typeof(T), "x");
+            Expression body = param.MemberExpression<T>(field, isNullCheck);
+            UnaryExpression converted = Expression.Convert(body, typeof(object));
+            var keySelector = Expression.Lambda<Func<T, object?>>(converted, param).Compile();
 
             if (ordered == null)
             {
